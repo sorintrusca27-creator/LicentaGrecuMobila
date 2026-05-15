@@ -1,0 +1,2791 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#07111f" />
+<title>Smart Parking Mobile</title>
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+:root {
+  --bg: #06101e;
+  --bg2: #081729;
+  --card: rgba(255, 255, 255, 0.075);
+  --card2: rgba(255, 255, 255, 0.105);
+  --line: rgba(255, 255, 255, 0.12);
+  --line2: rgba(0, 255, 170, 0.25);
+  --text: #ffffff;
+  --muted: #9eb0c6;
+  --green: #00ffaa;
+  --red: #ff5c5c;
+  --yellow: #ffd166;
+  --blue: #4cc9f0;
+  --shadow: 0 18px 40px rgba(0, 0, 0, 0.34);
+}
+
+body.light {
+  --bg: #eef4fb;
+  --bg2: #ffffff;
+  --card: rgba(255, 255, 255, 0.92);
+  --card2: rgba(255, 255, 255, 0.98);
+  --line: rgba(0, 0, 0, 0.1);
+  --line2: rgba(0, 168, 120, 0.25);
+  --text: #122033;
+  --muted: #5d6e82;
+  --green: #00a878;
+  --red: #d62828;
+  --yellow: #e69500;
+  --blue: #1971c2;
+  --shadow: 0 18px 35px rgba(0, 0, 0, 0.10);
+}
+
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  overflow-x: hidden;
+}
+
+body {
+  background:
+    radial-gradient(circle at 10% -10%, rgba(0, 255, 170, 0.15), transparent 34%),
+    radial-gradient(circle at 110% 10%, rgba(76, 201, 240, 0.12), transparent 32%),
+    linear-gradient(180deg, var(--bg), #030914 92%);
+}
+
+body.light {
+  background:
+    radial-gradient(circle at 10% -10%, rgba(0, 168, 120, 0.13), transparent 34%),
+    radial-gradient(circle at 110% 10%, rgba(25, 113, 194, 0.11), transparent 32%),
+    linear-gradient(180deg, #eef4fb, #dfeaf5 92%);
+}
+
+.mobile-app {
+  width: 100%;
+  min-height: 100vh;
+  padding: 18px 14px 96px;
+}
+
+.phone-shell {
+  width: 100%;
+  max-width: 460px;
+  margin: 0 auto;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.brand h1 {
+  font-size: 25px;
+  line-height: 1;
+  letter-spacing: -0.5px;
+}
+
+.brand h1 span {
+  color: var(--green);
+}
+
+.brand p {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+.icon-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.14);
+  backdrop-filter: blur(14px);
+  font-size: 18px;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.status-pill {
+  flex: 1;
+  min-height: 42px;
+  padding: 10px 13px;
+  border-radius: 999px;
+  background: rgba(255, 209, 102, 0.10);
+  border: 1px solid rgba(255, 209, 102, 0.38);
+  color: var(--yellow);
+  font-weight: 800;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.status-pill.online {
+  background: rgba(0, 255, 170, 0.10);
+  border-color: rgba(0, 255, 170, 0.32);
+  color: var(--green);
+}
+
+.status-pill.offline {
+  background: rgba(255, 92, 92, 0.12);
+  border-color: rgba(255, 92, 92, 0.38);
+  color: var(--red);
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 15px currentColor;
+}
+
+.refresh-btn {
+  min-width: 48px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--text);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.section {
+  display: none;
+  animation: fadeUp 0.28s ease both;
+}
+
+.section.active {
+  display: block;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.hero-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 30px;
+  padding: 24px 20px 20px;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(0, 255, 170, 0.22), transparent 36%),
+    linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.045));
+  border: 1px solid var(--line2);
+  box-shadow: var(--shadow);
+  margin-bottom: 14px;
+}
+
+.hero-card::after {
+  content: "";
+  position: absolute;
+  right: -34px;
+  bottom: -34px;
+  width: 118px;
+  height: 118px;
+  border-radius: 50%;
+  background: rgba(76, 201, 240, 0.13);
+  filter: blur(2px);
+}
+
+.hero-label {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.hero-number {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.hero-number strong {
+  color: var(--green);
+  font-size: 78px;
+  line-height: 0.88;
+  letter-spacing: -4px;
+}
+
+.hero-number span {
+  color: var(--muted);
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.hero-sub {
+  margin-top: 10px;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.hero-progress {
+  margin-top: 18px;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.12);
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+body.light .hero-progress {
+  background: rgba(0,0,0,0.10);
+}
+
+.hero-progress span {
+  display: block;
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--green), var(--yellow), var(--red));
+  border-radius: 999px;
+  transition: width 0.35s ease;
+}
+
+.alert-card {
+  display: none;
+  margin-bottom: 14px;
+  padding: 15px 16px;
+  border-radius: 20px;
+  background: rgba(255, 92, 92, 0.15);
+  border: 1px solid rgba(255, 92, 92, 0.46);
+  color: var(--red);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+  letter-spacing: 0;
+  box-shadow: 0 14px 30px rgba(255, 92, 92, 0.08);
+}
+
+.alert-card.show {
+  display: block;
+}
+
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.card {
+  border-radius: 23px;
+  padding: 16px;
+  background: linear-gradient(135deg, var(--card2), var(--card));
+  border: 1px solid var(--line);
+  box-shadow: 0 14px 30px rgba(0,0,0,0.16);
+  backdrop-filter: blur(14px);
+}
+
+.card-title {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.card-value {
+  font-size: 25px;
+  font-weight: 900;
+  line-height: 1.1;
+  word-break: break-word;
+}
+
+.small-value {
+  font-size: 18px;
+  line-height: 1.22;
+}
+
+.card-note {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.42;
+  margin-top: 7px;
+}
+
+.green { color: var(--green); }
+.red { color: var(--red); }
+.yellow { color: var(--yellow); }
+.blue { color: var(--blue); }
+
+
+.home-flow-card {
+  margin-bottom: 14px;
+  border-radius: 24px;
+  padding: 17px;
+  background: linear-gradient(135deg, rgba(0,255,170,0.10), rgba(76,201,240,0.07));
+  border: 1px solid var(--line2);
+  box-shadow: 0 14px 32px rgba(0,0,0,0.16);
+}
+
+.home-flow-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.home-flow-head h3 {
+  font-size: 15px;
+  margin-bottom: 5px;
+}
+
+.home-flow-head p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.42;
+}
+
+.flow-badge {
+  flex: 0 0 auto;
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: rgba(255,209,102,0.12);
+  border: 1px solid rgba(255,209,102,0.35);
+  color: var(--yellow);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.flow-badge.green {
+  background: rgba(0,255,170,0.12);
+  border-color: rgba(0,255,170,0.32);
+  color: var(--green);
+}
+
+.flow-badge.red {
+  background: rgba(255,92,92,0.12);
+  border-color: rgba(255,92,92,0.38);
+  color: var(--red);
+}
+
+.flow-steps {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.flow-step {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 52px;
+  padding: 11px 12px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.060);
+  border: 1px solid var(--line);
+}
+
+.flow-step strong {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 3px;
+}
+
+.flow-step small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.flow-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--yellow);
+  box-shadow: 0 0 16px rgba(255,209,102,0.7);
+  flex: 0 0 auto;
+}
+
+.flow-step.green .flow-dot {
+  background: var(--green);
+  box-shadow: 0 0 16px rgba(0,255,170,0.75);
+}
+
+.flow-step.red .flow-dot {
+  background: var(--red);
+  box-shadow: 0 0 16px rgba(255,92,92,0.75);
+}
+
+.flow-step.yellow .flow-dot {
+  background: var(--yellow);
+  box-shadow: 0 0 16px rgba(255,209,102,0.75);
+}
+
+
+/* ================= HOME CLEAN v4 - FLOW CARDS ================= */
+.access-guide-card {
+  margin-bottom: 14px;
+  border-radius: 26px;
+  padding: 17px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(0,255,170,0.12), transparent 34%),
+    linear-gradient(135deg, rgba(255,255,255,0.092), rgba(255,255,255,0.045));
+  border: 1px solid var(--line);
+  box-shadow: 0 14px 30px rgba(0,0,0,0.15);
+}
+
+.access-guide-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.access-guide-head h3 {
+  font-size: 15px;
+  margin-bottom: 5px;
+}
+
+.access-guide-head p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.42;
+}
+
+.home-guidance {
+  margin: 12px 0 13px;
+  padding: 13px 14px;
+  border-radius: 18px;
+  background: rgba(0,255,170,0.075);
+  border: 1px solid rgba(0,255,170,0.18);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.38;
+}
+
+.entry-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.flow-step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 128px;
+  padding: 13px;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.060);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.flow-step::after {
+  content: "";
+  position: absolute;
+  left: 13px;
+  right: 13px;
+  bottom: 0;
+  height: 3px;
+  border-radius: 999px 999px 0 0;
+  background: rgba(158,176,198,0.42);
+}
+
+.flow-step.green::after { background: var(--green); box-shadow: 0 0 14px rgba(0,255,170,0.55); }
+.flow-step.red::after { background: var(--red); box-shadow: 0 0 14px rgba(255,92,92,0.50); }
+.flow-step.yellow::after { background: var(--yellow); box-shadow: 0 0 14px rgba(255,209,102,0.50); }
+
+.entry-step-top {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.entry-step-number {
+  width: 27px;
+  height: 27px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: #06101e;
+  background: var(--yellow);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.entry-step-icon {
+  width: 31px;
+  height: 31px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,0.075);
+  border: 1px solid var(--line);
+  font-size: 16px;
+}
+
+.flow-step strong {
+  display: block;
+  font-size: 12px;
+  line-height: 1.2;
+  margin-bottom: 5px;
+}
+
+.flow-step small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.28;
+}
+
+.flow-step.green .entry-step-number { background: var(--green); }
+.flow-step.red .entry-step-number { background: var(--red); color: #ffffff; }
+.flow-step.yellow .entry-step-number { background: var(--yellow); }
+.flow-step.idle .entry-step-number { background: rgba(158,176,198,0.42); color: var(--text); }
+
+.flow-step.green .entry-step-icon { color: var(--green); border-color: rgba(0,255,170,0.25); background: rgba(0,255,170,0.08); }
+.flow-step.red .entry-step-icon { color: var(--red); border-color: rgba(255,92,92,0.25); background: rgba(255,92,92,0.08); }
+.flow-step.yellow .entry-step-icon { color: var(--yellow); border-color: rgba(255,209,102,0.28); background: rgba(255,209,102,0.08); }
+
+/* ================= HOME v5 - REALISTIC COMPACT INFO ================= */
+.home-smart-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 14px;
+}
+
+.smart-mini-card {
+  position: relative;
+  min-height: 94px;
+  border-radius: 20px;
+  padding: 13px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.088), rgba(255,255,255,0.045));
+  border: 1px solid var(--line);
+  box-shadow: 0 12px 26px rgba(0,0,0,0.13);
+  overflow: hidden;
+}
+
+.smart-mini-card::after {
+  content: "";
+  position: absolute;
+  right: -22px;
+  bottom: -24px;
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: rgba(0,255,170,0.065);
+}
+
+.smart-mini-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  margin-bottom: 7px;
+}
+
+.smart-mini-value {
+  position: relative;
+  z-index: 1;
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1.15;
+  color: var(--text);
+}
+
+.smart-mini-note {
+  position: relative;
+  z-index: 1;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.28;
+  margin-top: 6px;
+}
+
+.smart-mini-card.good { border-color: rgba(0,255,170,0.24); }
+.smart-mini-card.good .smart-mini-value { color: var(--green); }
+.smart-mini-card.warn { border-color: rgba(255,209,102,0.28); }
+.smart-mini-card.warn .smart-mini-value { color: var(--yellow); }
+.smart-mini-card.bad { border-color: rgba(255,92,92,0.32); }
+.smart-mini-card.bad .smart-mini-value { color: var(--red); }
+
+.home-tip-card {
+  margin: 0 0 14px;
+  padding: 13px 14px;
+  border-radius: 19px;
+  background: rgba(76,201,240,0.075);
+  border: 1px solid rgba(76,201,240,0.18);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.home-tip-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  background: rgba(76,201,240,0.12);
+  color: var(--blue);
+  border: 1px solid rgba(76,201,240,0.20);
+  font-weight: 900;
+}
+
+.home-tip-card strong {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 3px;
+}
+
+.home-tip-card small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+@media (max-width: 390px) {
+  .home-smart-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .smart-mini-card {
+    min-height: 78px;
+  }
+}
+
+.home-map-card.clean-home-map {
+  margin-top: 0;
+}
+
+@media (max-width: 390px) {
+  .entry-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .flow-step {
+    min-height: 78px;
+  }
+}
+
+.recommendation {
+  margin-bottom: 14px;
+  border-radius: 24px;
+  padding: 17px;
+  border: 1px solid var(--line2);
+  background: linear-gradient(135deg, rgba(0,255,170,0.11), rgba(76,201,240,0.08));
+}
+
+.recommendation h3 {
+  font-size: 14px;
+  color: var(--green);
+  margin-bottom: 7px;
+}
+
+.recommendation p {
+  font-size: 14px;
+  line-height: 1.48;
+  color: var(--text);
+}
+
+.map-card {
+  margin-bottom: 14px;
+}
+
+.map-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.map-header h2 {
+  font-size: 18px;
+}
+
+.map-header p {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.mini-badge {
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: rgba(0,255,170,0.09);
+  border: 1px solid rgba(0,255,170,0.20);
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.mini-badge.closed {
+  background: rgba(255, 92, 92, 0.12);
+  border-color: rgba(255, 92, 92, 0.36);
+  color: var(--red);
+}
+
+.mini-badge.checking {
+  background: rgba(255, 209, 102, 0.13);
+  border-color: rgba(255, 209, 102, 0.42);
+  color: var(--yellow);
+}
+
+.mini-badge.open {
+  background: rgba(0, 255, 170, 0.12);
+  border-color: rgba(0, 255, 170, 0.32);
+  color: var(--green);
+}
+
+.parking-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.slot {
+  position: relative;
+  min-height: 136px;
+  border-radius: 22px;
+  border: 2px dashed rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.045);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  overflow: hidden;
+  transition: 0.25s ease;
+}
+
+.home-map-card {
+  margin-bottom: 14px;
+}
+
+.compact-slot {
+  min-height: 118px;
+  border-radius: 20px;
+}
+
+.compact-slot .car-icon {
+  width: 50px;
+  height: 62px;
+  border-radius: 16px;
+  font-size: 12px;
+}
+
+.compact-slot .slot-status {
+  font-size: 13px;
+}
+
+body.light .slot {
+  border-color: rgba(0,0,0,0.14);
+}
+
+.slot::before {
+  content: "";
+  position: absolute;
+  inset: 10px;
+  border-radius: 17px;
+  border: 1px solid rgba(255,255,255,0.075);
+}
+
+.slot-name {
+  position: absolute;
+  left: 12px;
+  top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.car-icon {
+  width: 58px;
+  height: 76px;
+  border-radius: 18px;
+  border: 2px solid rgba(255,255,255,0.18);
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  font-size: 14px;
+  z-index: 1;
+}
+
+.slot-status {
+  font-size: 15px;
+  font-weight: 900;
+  z-index: 1;
+}
+
+.slot.free {
+  background: rgba(0,255,170,0.075);
+  border-color: rgba(0,255,170,0.64);
+}
+
+.slot.free .car-icon {
+  color: var(--green);
+  border-color: rgba(0,255,170,0.6);
+  background: rgba(0,255,170,0.10);
+}
+
+.slot.free .slot-status { color: var(--green); }
+
+.slot.occupied {
+  background: rgba(255,92,92,0.10);
+  border-color: rgba(255,92,92,0.68);
+}
+
+.slot.occupied .car-icon {
+  color: var(--red);
+  border-color: rgba(255,92,92,0.62);
+  background: rgba(255,92,92,0.12);
+}
+
+.slot.occupied .slot-status { color: var(--red); }
+
+.barrier-card {
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+
+.barrier-visual {
+  position: relative;
+  height: 174px;
+  margin-top: 14px;
+  border-radius: 22px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(90deg, transparent 0 7%, rgba(255,255,255,0.10) 7% 7.8%, transparent 7.8% 15%),
+    linear-gradient(180deg, rgba(255,255,255,0.045), rgba(0,0,0,0.20));
+  background-size: 118px 100%, 100% 100%;
+}
+
+body.light .barrier-visual {
+  background:
+    linear-gradient(90deg, transparent 0 7%, rgba(0,0,0,0.10) 7% 7.8%, transparent 7.8% 15%),
+    rgba(0,0,0,0.05);
+  background-size: 118px 100%, 100% 100%;
+}
+
+.barrier-visual::before {
+  content: "";
+  position: absolute;
+  left: 108px;
+  right: 14px;
+  top: 88px;
+  height: 4px;
+  transform: translateY(-50%);
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(255,255,255,0.76) 0 28px,
+    transparent 28px 56px
+  );
+  opacity: 0.95;
+  z-index: 1;
+}
+
+.barrier-visual::after {
+  content: "";
+  position: absolute;
+  left: 108px;
+  right: 14px;
+  top: 24px;
+  bottom: 16px;
+  border-top: 2px solid rgba(255,255,255,0.15);
+  border-bottom: 2px solid rgba(255,255,255,0.15);
+  border-radius: 16px;
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,0.018) 0 50%,
+    rgba(0,0,0,0.10) 50% 100%
+  );
+  z-index: 0;
+}
+
+body.light .barrier-visual::before {
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(0,0,0,0.36) 0 28px,
+    transparent 28px 56px
+  );
+}
+
+body.light .barrier-visual::after {
+  border-top-color: rgba(0,0,0,0.13);
+  border-bottom-color: rgba(0,0,0,0.13);
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,0.22) 0 50%,
+    rgba(0,0,0,0.035) 50% 100%
+  );
+}
+
+.lane,
+.lane-border {
+  display: none;
+}
+
+.barrier-base {
+  position: absolute;
+  left: 26px;
+  bottom: 36px;
+  width: 38px;
+  height: 66px;
+  border-radius: 11px;
+  background: linear-gradient(180deg, var(--yellow), #986400);
+  box-shadow: 0 12px 22px rgba(0,0,0,0.26);
+  z-index: 5;
+}
+
+.barrier-base::before,
+.barrier-base::after,
+.barrier-base .yellow-light {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 11px;
+  height: 11px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  transition: 0.25s ease;
+}
+
+.barrier-base::after {
+  top: 11px;
+  background: rgba(255,92,92,0.28);
+}
+
+.barrier-base .yellow-light {
+  top: 28px;
+  background: rgba(255,209,102,0.28);
+}
+
+.barrier-base::before {
+  top: 45px;
+  background: rgba(0,255,170,0.28);
+}
+
+.barrier-base.closed::after {
+  background: #ff6666;
+  box-shadow: 0 0 12px rgba(255,92,92,0.95), 0 0 26px rgba(255,92,92,0.62);
+}
+
+.barrier-base.checking .yellow-light {
+  background: #ffd166;
+  box-shadow: 0 0 12px rgba(255,209,102,0.95), 0 0 26px rgba(255,209,102,0.62);
+}
+
+.barrier-base.open::before {
+  background: #19ffc2;
+  box-shadow: 0 0 12px rgba(0,255,170,0.95), 0 0 26px rgba(0,255,170,0.62);
+}
+
+.barrier-arm {
+  position: absolute;
+  left: 60px;
+  bottom: 94px;
+  width: 208px;
+  height: 15px;
+  border-radius: 999px;
+  transform-origin: left center;
+  transform: rotate(0deg);
+  transition: transform 0.65s cubic-bezier(.2,.8,.2,1);
+  background: repeating-linear-gradient(90deg, #ff5c5c 0 26px, #ffffff 26px 52px);
+  box-shadow: 0 9px 18px rgba(0,0,0,0.25);
+  z-index: 4;
+}
+
+.barrier-arm.open {
+  transform: rotate(-58deg);
+}
+
+.passing-car {
+  position: absolute;
+  left: -90px;
+  top: 111px;
+  width: 70px;
+  height: 30px;
+  border-radius: 15px 18px 11px 11px;
+  background: linear-gradient(135deg, #4cc9f0, #1b6cff);
+  opacity: 0;
+  box-shadow: 0 10px 20px rgba(0,0,0,0.26);
+  z-index: 3;
+  will-change: transform, opacity;
+}
+
+.passing-car::before {
+  content: "";
+  position: absolute;
+  left: 15px;
+  top: -10px;
+  width: 34px;
+  height: 16px;
+  border-radius: 14px 14px 5px 5px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.92), rgba(255,255,255,0.48));
+}
+
+.passing-car::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  bottom: -5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #07111f;
+  box-shadow: 36px 0 0 #07111f;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.event-item {
+  border-radius: 18px;
+  padding: 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  line-height: 1.35;
+}
+
+.event-item strong {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 5px;
+}
+
+.event-item small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.event-green { border-left: 5px solid var(--green); }
+.event-red { border-left: 5px solid var(--red); }
+.event-yellow { border-left: 5px solid var(--yellow); }
+.event-blue { border-left: 5px solid var(--blue); }
+
+.info-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.info-row span:first-child {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.info-row span:last-child {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 900;
+  text-align: right;
+  max-width: 60%;
+  word-break: break-word;
+}
+
+.payload-box {
+  margin-top: 12px;
+  padding: 13px;
+  border-radius: 17px;
+  background: rgba(0,0,0,0.22);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: break-word;
+  max-height: 180px;
+  overflow: auto;
+}
+
+body.light .payload-box {
+  background: rgba(0,0,0,0.055);
+}
+
+.bottom-nav {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  width: calc(100% - 24px);
+  max-width: 460px;
+  height: 70px;
+  border-radius: 24px;
+  border: 1px solid var(--line);
+  background: rgba(7, 17, 31, 0.86);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 18px 38px rgba(0,0,0,0.32);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  padding: 7px;
+  z-index: 50;
+}
+
+body.light .bottom-nav {
+  background: rgba(255,255,255,0.86);
+}
+
+.nav-btn {
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 18px;
+  font-size: 11px;
+  font-weight: 900;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.nav-btn span {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.nav-btn.active {
+  background: rgba(0,255,170,0.12);
+  color: var(--green);
+  border: 1px solid rgba(0,255,170,0.18);
+}
+
+@media (min-width: 760px) {
+  .mobile-app {
+    padding-top: 28px;
+  }
+
+  .phone-shell {
+    border-radius: 34px;
+  }
+}
+
+@media (max-width: 360px) {
+  .hero-number strong {
+    font-size: 66px;
+  }
+
+  .card-value {
+    font-size: 21px;
+  }
+
+  .parking-grid {
+    gap: 9px;
+  }
+
+  .slot {
+    min-height: 123px;
+  }
+}
+@media (max-width: 380px) {
+  .barrier-visual::before,
+  .barrier-visual::after {
+    left: 100px;
+    right: 10px;
+  }
+
+  .barrier-arm {
+    width: 188px;
+  }
+
+  .passing-car {
+    width: 66px;
+  }
+}
+
+
+
+/* ================= HOME v6 - CLEAN FLOW ONLY ================= */
+.access-flow-panel {
+  margin-bottom: 14px;
+  padding: 17px 17px 15px;
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(0,255,170,0.10), transparent 32%),
+    linear-gradient(135deg, rgba(255,255,255,0.088), rgba(255,255,255,0.044));
+  border: 1px solid rgba(0,255,170,0.20);
+  box-shadow: 0 14px 30px rgba(0,0,0,0.15);
+}
+
+.access-flow-panel .access-guide-head {
+  margin-bottom: 8px;
+}
+
+.access-flow-panel .access-guide-head h3 {
+  font-size: 16px;
+  letter-spacing: -0.2px;
+}
+
+.access-flow-panel .access-guide-head p {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.access-flow-panel .entry-steps {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  padding: 16px 2px 12px;
+  margin-top: 4px;
+}
+
+.access-flow-panel .entry-steps::before {
+  content: "";
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  top: 38px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(0,255,170,0.55), rgba(255,209,102,0.48), rgba(255,92,92,0.48));
+  opacity: 0.75;
+}
+
+.access-flow-panel .flow-step {
+  position: relative;
+  z-index: 1;
+  min-height: auto;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+  text-align: center;
+  overflow: visible;
+}
+
+.access-flow-panel .flow-step::after {
+  display: none;
+}
+
+.access-flow-panel .entry-step-top {
+  width: 52px;
+  height: 52px;
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.access-flow-panel .entry-step-number {
+  position: absolute;
+  right: -2px;
+  top: -2px;
+  width: 19px;
+  height: 19px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,0.16);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.access-flow-panel .entry-step-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,0.070);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+.access-flow-panel .flow-step strong {
+  display: block;
+  font-size: 12px;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.access-flow-panel .flow-step small {
+  display: block;
+  max-width: 105px;
+  min-height: 28px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.access-flow-panel .flow-step.green .entry-step-icon {
+  color: var(--green);
+  border-color: rgba(0,255,170,0.34);
+  background: rgba(0,255,170,0.10);
+  box-shadow: 0 0 20px rgba(0,255,170,0.10);
+}
+
+.access-flow-panel .flow-step.yellow .entry-step-icon {
+  color: var(--yellow);
+  border-color: rgba(255,209,102,0.36);
+  background: rgba(255,209,102,0.11);
+  box-shadow: 0 0 20px rgba(255,209,102,0.10);
+}
+
+.access-flow-panel .flow-step.red .entry-step-icon {
+  color: var(--red);
+  border-color: rgba(255,92,92,0.34);
+  background: rgba(255,92,92,0.105);
+  box-shadow: 0 0 20px rgba(255,92,92,0.10);
+}
+
+.access-flow-panel .flow-step.green strong { color: var(--green); }
+.access-flow-panel .flow-step.yellow strong { color: var(--yellow); }
+.access-flow-panel .flow-step.red strong { color: var(--red); }
+
+.access-flow-panel .home-guidance {
+  margin: 8px 0 0;
+  padding: 12px 13px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.055);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.38;
+}
+
+.access-flow-panel .flow-badge {
+  min-width: 76px;
+  text-align: center;
+}
+
+
+
+/* ================= HOME v7 - CLEAN USER ACCESS PANEL ================= */
+.access-guide-card.access-flow-panel {
+  position: relative;
+  margin-bottom: 14px;
+  border-radius: 28px;
+  padding: 18px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(0,255,170,0.12), transparent 36%),
+    linear-gradient(135deg, rgba(255,255,255,0.095), rgba(255,255,255,0.045));
+  border: 1px solid var(--line2);
+  box-shadow: 0 16px 34px rgba(0,0,0,0.16);
+}
+
+.access-flow-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(255,255,255,0.045), transparent 38%);
+  pointer-events: none;
+}
+
+.access-flow-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+.access-flow-panel .access-guide-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.access-flow-panel .access-guide-head h3 {
+  font-size: 16px;
+  margin-bottom: 5px;
+}
+
+.access-flow-panel .access-guide-head p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.access-flow-panel .flow-badge {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255,209,102,0.12);
+  border: 1px solid rgba(255,209,102,0.38);
+  color: var(--yellow);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.access-flow-panel .flow-badge.green {
+  background: rgba(0,255,170,0.12);
+  border-color: rgba(0,255,170,0.32);
+  color: var(--green);
+}
+
+.access-flow-panel .flow-badge.red {
+  background: rgba(255,92,92,0.12);
+  border-color: rgba(255,92,92,0.38);
+  color: var(--red);
+}
+
+.home-main-message {
+  padding: 14px 15px;
+  border-radius: 20px;
+  background: rgba(0,0,0,0.13);
+  border: 1px solid var(--line);
+  margin-bottom: 13px;
+}
+
+body.light .home-main-message {
+  background: rgba(255,255,255,0.58);
+}
+
+.home-main-message strong {
+  display: block;
+  font-size: 15px;
+  line-height: 1.25;
+  margin-bottom: 5px;
+}
+
+.home-main-message small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.home-live-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.home-live-pill {
+  min-height: 54px;
+  border-radius: 17px;
+  padding: 10px;
+  background: rgba(255,255,255,0.055);
+  border: 1px solid var(--line);
+}
+
+.home-live-pill span {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  margin-bottom: 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.25px;
+}
+
+.home-live-pill strong {
+  display: block;
+  font-size: 13px;
+  line-height: 1.15;
+  word-break: break-word;
+}
+
+.access-flow-panel .entry-steps {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.access-flow-panel .entry-steps::before {
+  content: "";
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  top: 19px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.12);
+  z-index: 0;
+}
+
+body.light .access-flow-panel .entry-steps::before {
+  background: rgba(0,0,0,0.12);
+}
+
+.access-flow-panel .flow-step {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+  min-height: 96px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+  text-align: center;
+}
+
+.access-flow-panel .flow-step::after {
+  display: none;
+}
+
+.access-flow-panel .entry-step-top {
+  width: auto;
+  display: grid;
+  place-items: center;
+}
+
+.access-flow-panel .entry-step-number {
+  display: none;
+}
+
+.access-flow-panel .entry-step-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  box-shadow: 0 8px 18px rgba(0,0,0,0.12);
+}
+
+.access-flow-panel .flow-step.green .entry-step-icon {
+  color: #06101e;
+  background: var(--green);
+  border-color: rgba(0,255,170,0.55);
+  box-shadow: 0 0 18px rgba(0,255,170,0.28);
+}
+
+.access-flow-panel .flow-step.yellow .entry-step-icon {
+  color: #06101e;
+  background: var(--yellow);
+  border-color: rgba(255,209,102,0.55);
+  box-shadow: 0 0 18px rgba(255,209,102,0.25);
+}
+
+.access-flow-panel .flow-step.red .entry-step-icon {
+  color: #ffffff;
+  background: var(--red);
+  border-color: rgba(255,92,92,0.55);
+  box-shadow: 0 0 18px rgba(255,92,92,0.23);
+}
+
+.access-flow-panel .flow-step strong {
+  display: block;
+  font-size: 12px;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.access-flow-panel .flow-step small {
+  display: block;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.25;
+}
+
+.access-flow-panel .home-guidance {
+  margin: 12px 0 0;
+  padding: 12px 13px;
+  border-radius: 17px;
+  background: rgba(0,255,170,0.075);
+  border: 1px solid rgba(0,255,170,0.18);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 800;
+  line-height: 1.38;
+}
+
+
+
+/* ================= HOME v8 - CLEAN USEFUL FLOW REFINEMENT ================= */
+.access-flow-panel,
+.access-flow-panel * {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.access-flow-panel .access-guide-head h3,
+.home-main-message strong,
+.access-flow-panel .flow-step strong,
+.access-flow-panel .flow-badge,
+.home-live-pill strong,
+.home-live-pill span,
+.access-flow-panel .home-guidance {
+  font-weight: 700;
+}
+
+.access-flow-panel .access-guide-head p,
+.home-main-message small,
+.access-flow-panel .flow-step small {
+  font-weight: 400;
+}
+
+.home-live-pill {
+  min-height: 56px;
+  background: rgba(255,255,255,0.045);
+}
+
+.home-live-pill span {
+  font-size: 9.5px;
+  letter-spacing: 0.18px;
+}
+
+.home-live-pill strong {
+  font-size: 12.5px;
+}
+
+.access-flow-panel .flow-step.yellow.idle-rfid .entry-step-icon {
+  color: var(--yellow);
+  background: rgba(255,209,102,0.15);
+  border-color: rgba(255,209,102,0.34);
+  box-shadow: 0 0 14px rgba(255,209,102,0.12);
+}
+
+.access-flow-panel .flow-step.yellow.idle-rfid strong {
+  color: var(--yellow);
+}
+
+.access-flow-panel .flow-step.yellow.scanning .entry-step-icon {
+  color: #06101e;
+  background: #ffd166;
+  border-color: rgba(255,209,102,0.78);
+  box-shadow: 0 0 22px rgba(255,209,102,0.45), 0 0 42px rgba(255,209,102,0.16);
+  animation: rfidPulse 1.05s ease-in-out infinite;
+}
+
+.access-flow-panel .flow-step.yellow.scanning strong {
+  color: var(--yellow);
+}
+
+@keyframes rfidPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.07); }
+}
+
+.access-flow-panel .home-guidance {
+  margin: 12px 0 0;
+  padding: 11px 13px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.052);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+body.light .access-flow-panel .home-guidance {
+  background: rgba(255,255,255,0.62);
+}
+
+@media (max-width: 370px) {
+  .home-live-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .access-flow-panel .entry-steps {
+    gap: 5px;
+  }
+
+  .access-flow-panel .entry-step-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 14px;
+  }
+}
+
+
+/* ================= HOME v10 - RECOMANDARE CA IN INDEX + STATUS COLOR ================= */
+.access-flow-panel .home-main-message {
+  margin: 0 0 13px;
+  padding: 15px 16px;
+  border-radius: 20px;
+  background: rgba(0, 255, 170, 0.075);
+  border: 1px solid rgba(0, 255, 170, 0.24);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.035);
+  transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.access-flow-panel .home-main-message strong {
+  color: var(--green);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+  margin-bottom: 8px;
+  letter-spacing: -0.1px;
+}
+
+.access-flow-panel .home-main-message small {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.access-flow-panel .home-main-message.rec-ok {
+  background: rgba(0, 255, 170, 0.075);
+  border-color: rgba(0, 255, 170, 0.26);
+}
+
+.access-flow-panel .home-main-message.rec-ok strong { color: var(--green); }
+
+.access-flow-panel .home-main-message.rec-warn {
+  background: rgba(255, 209, 102, 0.085);
+  border-color: rgba(255, 209, 102, 0.32);
+  box-shadow: 0 0 20px rgba(255, 209, 102, 0.055), inset 0 1px 0 rgba(255,255,255,0.035);
+}
+
+.access-flow-panel .home-main-message.rec-warn strong { color: var(--yellow); }
+
+.access-flow-panel .home-main-message.rec-bad {
+  background: rgba(255, 92, 92, 0.085);
+  border-color: rgba(255, 92, 92, 0.34);
+  box-shadow: 0 0 20px rgba(255, 92, 92, 0.055), inset 0 1px 0 rgba(255,255,255,0.035);
+}
+
+.access-flow-panel .home-main-message.rec-bad strong { color: var(--red); }
+
+body.light .access-flow-panel .home-main-message {
+  background: rgba(0, 168, 120, 0.08);
+}
+
+body.light .access-flow-panel .home-main-message.rec-warn {
+  background: rgba(230, 149, 0, 0.09);
+}
+
+body.light .access-flow-panel .home-main-message.rec-bad {
+  background: rgba(214, 40, 40, 0.08);
+}
+
+</style>
+</head>
+<body>
+<div class="mobile-app">
+  <div class="phone-shell">
+    <header class="topbar">
+      <div class="brand">
+        <h1>Smart<span>Parking</span></h1>
+        <p>Mobile live dashboard</p>
+      </div>
+      <button class="icon-btn" onclick="toggleTheme()" id="themeBtn" aria-label="Schimba tema">☀️</button>
+    </header>
+
+    <div class="status-row">
+      <div class="status-pill offline" id="mqttStatus"><span class="dot"></span> MQTT offline</div>
+      <button class="refresh-btn" onclick="reconnectMQTT()" aria-label="Reconectare">↻</button>
+    </div>
+
+    <div class="alert-card" id="fullAlert">
+      ATENTIE: Parcarea este plina. Accesul va fi respins pana se elibereaza un loc.
+    </div>
+
+    <section id="home" class="section active">
+      <div class="hero-card">
+        <div class="hero-label">Locuri disponibile acum</div>
+        <div class="hero-number">
+          <strong id="homeLibere">0</strong>
+          <span>/ <span id="homeTotal">4</span></span>
+        </div>
+        <div class="hero-sub">Grad ocupare: <span id="homeOcupare">0</span>%</div>
+        <div class="hero-progress"><span id="baraOcupare"></span></div>
+      </div>
+
+      <div class="access-guide-card access-flow-panel">
+        <div class="access-guide-head">
+          <div>
+            <h3>Acces parcare</h3>
+            <p>Panou simplu pentru intrare, actualizat live.</p>
+          </div>
+          <div class="flow-badge" id="homeFlowBadge">Standby</div>
+        </div>
+
+        <div class="home-main-message">
+          <strong id="homeDecisionTitle">Recomandare utilizator</strong>
+          <small id="homeDecisionSub">Se asteapta date de la sistem.</small>
+        </div>
+
+        <div class="home-live-strip">
+          <div class="home-live-pill">
+            <span>Mod intrare</span>
+            <strong id="homeLiveDisponibil">Card RFID</strong>
+          </div>
+          <div class="home-live-pill">
+            <span>Locuri libere</span>
+            <strong id="homeLiveOcupare">Se asteapta</strong>
+          </div>
+          <div class="home-live-pill">
+            <span>Actiune</span>
+            <strong id="homeLivePoarta">Scaneaza cardul</strong>
+          </div>
+        </div>
+
+        <div class="entry-steps">
+          <div class="flow-step idle" id="flowDisponibilitate">
+            <div class="entry-step-top">
+              <span class="entry-step-number">1</span>
+              <span class="entry-step-icon">P</span>
+            </div>
+            <strong>Locuri</strong>
+            <small id="homeDisponibilitateText">Se asteapta date</small>
+          </div>
+
+          <div class="flow-step yellow idle-rfid" id="flowRfid">
+            <div class="entry-step-top">
+              <span class="entry-step-number">2</span>
+              <span class="entry-step-icon">RFID</span>
+            </div>
+            <strong>Card</strong>
+            <small id="homeRfidText">Pregatit</small>
+          </div>
+
+          <div class="flow-step red" id="flowPoarta">
+            <div class="entry-step-top">
+              <span class="entry-step-number">3</span>
+              <span class="entry-step-icon">▮</span>
+            </div>
+            <strong>Bariera</strong>
+            <small id="homePoartaText">Inchisa</small>
+          </div>
+        </div>
+
+        <div class="home-guidance" id="homeGuidance">
+          Statusul se actualizeaza automat dupa scanarea cardului si dupa miscarea barierei.
+        </div>
+      </div>
+
+      <div class="card map-card home-map-card clean-home-map">
+        <div class="map-header">
+          <div>
+            <h2>Harta rapida</h2>
+            <p>Locurile libere si ocupate se vad imediat.</p>
+          </div>
+          <div class="mini-badge"><span id="homeMapLibere">0</span> libere</div>
+        </div>
+
+        <div class="parking-grid home-parking-grid">
+          <div class="slot compact-slot" id="slot1Home">
+            <div class="slot-name">Loc 1</div>
+            <div class="car-icon" id="icon1Home">P</div>
+            <div class="slot-status" id="text1Home">---</div>
+          </div>
+
+          <div class="slot compact-slot" id="slot2Home">
+            <div class="slot-name">Loc 2</div>
+            <div class="car-icon" id="icon2Home">P</div>
+            <div class="slot-status" id="text2Home">---</div>
+          </div>
+
+          <div class="slot compact-slot" id="slot3Home">
+            <div class="slot-name">Loc 3</div>
+            <div class="car-icon" id="icon3Home">P</div>
+            <div class="slot-status" id="text3Home">---</div>
+          </div>
+
+          <div class="slot compact-slot" id="slot4Home">
+            <div class="slot-name">Loc 4</div>
+            <div class="car-icon" id="icon4Home">P</div>
+            <div class="slot-status" id="text4Home">---</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="harta" class="section">
+      <div class="card map-card">
+        <div class="map-header">
+          <div>
+            <h2>Harta parcare</h2>
+            <p>Locurile L1-L4 sunt actualizate live.</p>
+          </div>
+          <div class="mini-badge"><span id="mapLibere">0</span> libere</div>
+        </div>
+
+        <div class="parking-grid">
+          <div class="slot" id="slot1">
+            <div class="slot-name">Loc 1</div>
+            <div class="car-icon" id="icon1">P</div>
+            <div class="slot-status" id="text1">---</div>
+          </div>
+
+          <div class="slot" id="slot2">
+            <div class="slot-name">Loc 2</div>
+            <div class="car-icon" id="icon2">P</div>
+            <div class="slot-status" id="text2">---</div>
+          </div>
+
+          <div class="slot" id="slot3">
+            <div class="slot-name">Loc 3</div>
+            <div class="car-icon" id="icon3">P</div>
+            <div class="slot-status" id="text3">---</div>
+          </div>
+
+          <div class="slot" id="slot4">
+            <div class="slot-name">Loc 4</div>
+            <div class="car-icon" id="icon4">P</div>
+            <div class="slot-status" id="text4">---</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card barrier-card">
+        <div class="map-header">
+          <div>
+            <h2>Poarta intrare</h2>
+            <p>Status vizual pentru bariera automata.</p>
+          </div>
+          <div class="mini-badge" id="mapBarrier">---</div>
+        </div>
+        <div class="barrier-visual">
+          <div class="lane-border"></div>
+          <div class="lane"></div>
+          <div class="passing-car" id="passingCarMap"></div>
+          <div class="barrier-base closed" id="barrierBaseMap"><span class="yellow-light"></span></div>
+          <div class="barrier-arm" id="barrierArmMap"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="notificari" class="section">
+      <div class="card map-card">
+        <div class="map-header">
+          <div>
+            <h2>Notificari</h2>
+            <p>Evenimente importante primite din cloud.</p>
+          </div>
+        </div>
+        <div class="list" id="notificariLista">
+          <div class="event-item event-blue">
+            <strong>Dashboard pornit</strong>
+            <small>Se asteapta conectarea la HiveMQ Cloud.</small>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="sistem" class="section">
+      <div class="card">
+        <div class="map-header">
+          <div>
+            <h2>Sistem</h2>
+            <p>Date tehnice pentru conexiunea live.</p>
+          </div>
+        </div>
+
+        <div class="info-list">
+          <div class="info-row"><span>Status sistem</span><span id="statusSistem">---</span></div>
+          <div class="info-row"><span>Arduino</span><span id="conexiuneArduino">---</span></div>
+          <div class="info-row"><span>Broker MQTT</span><span id="brokerStatus">Offline</span></div>
+          <div class="info-row"><span>Topic</span><span>smartparking/sorin/licenta/status</span></div>
+          <div class="info-row"><span>Ultima actualizare</span><span id="ultimaActualizare">---</span></div>
+          <div class="info-row"><span>Uptime ESP32</span><span><span id="uptime">0</span> sec</span></div>
+        </div>
+
+        <div class="payload-box" id="ultimulMesaj">Nu exista date</div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<nav class="bottom-nav">
+  <button class="nav-btn active" onclick="showPage('home', this)"><span>⌂</span>Home</button>
+  <button class="nav-btn" onclick="showPage('harta', this)"><span>▦</span>Harta</button>
+  <button class="nav-btn" onclick="showPage('notificari', this)"><span>◌</span>Notificari</button>
+  <button class="nav-btn" onclick="showPage('sistem', this)"><span>⚙</span>Sistem</button>
+</nav>
+
+<script>
+const mqttHost = "74a43c5c747942599c6bd928872acd41.s1.eu.hivemq.cloud";
+const mqttPort = 8884;
+const mqttTopic = "smartparking/sorin/licenta/status";
+const mqttUser = "smartparking";
+const mqttPassword = "Parola1.";
+
+let mqttClient = null;
+let ultimStatusAcces = "";
+let ultimUid = "";
+let ultimLocuriLibere = -1;
+let notificariCount = 0;
+let barieraDeschisaAnterior = false;
+let barieraVerificarePanaMs = 0;
+let momentUltimaDeschidereBarieraMs = 0;
+let ultimDataBariera = null;
+let timerReverificareInchidere = null;
+let timerAnimatieMasina = null;
+let ultimaAnimatieMasinaMs = 0;
+let animatieMasinaInCurs = false;
+let animatieMasinaStartMs = 0;
+let animatieMasinaFrameId = null;
+const BARIERA_MIN_OPEN_VISUAL_MS = 4200;
+const MASINA_ANIMATIE_COOLDOWN_MS = 5200;
+const MASINA_ANIMATIE_DURATA_MS = 3600;
+let primaActualizarePrimita = false;
+let ultimCardScanatUid = "";
+let ultimCardScanatMs = 0;
+const CARD_SCAN_COOLDOWN_MS = 12000;
+
+// Protectie pentru telefon: daca nu mai vin date, afisam stare clara.
+let ultimaDataPrimitaMs = 0;
+let watchdogPornit = false;
+const DATA_TIMEOUT_MS = 25000;
+
+function connectMQTT() {
+  if (typeof mqtt === "undefined") {
+    setMqttStatus("MQTT indisponibil", "offline");
+    setText("brokerStatus", "Libraria MQTT nu s-a incarcat");
+    adaugaNotificare("Eroare MQTT", "Libraria MQTT nu s-a incarcat. Verifica internetul si reincarca pagina.", "event-red");
+    return;
+  }
+
+  if (mqttClient) {
+    try { mqttClient.end(true); } catch (e) {}
+    mqttClient = null;
+  }
+
+  const clientId = "mobile_dashboard_" + Math.random().toString(16).substring(2, 10);
+  const url = "wss://" + mqttHost + ":" + mqttPort + "/mqtt";
+
+  mqttClient = mqtt.connect(url, {
+    clientId: clientId,
+    username: mqttUser,
+    password: mqttPassword,
+    clean: true,
+    connectTimeout: 8000,
+    reconnectPeriod: 3000
+  });
+
+  mqttClient.on("connect", function () {
+    setMqttStatus("MQTT online", "online");
+    setText("brokerStatus", "Online");
+
+    // La fiecare reconectare pornim de la starea curenta, fara notificari false.
+    primaActualizarePrimita = false;
+
+    mqttClient.subscribe(mqttTopic, function (err) {
+      if (!err) {
+        adaugaNotificare("MQTT conectat", "Aplicatia mobila s-a conectat la HiveMQ Cloud.", "event-green");
+      } else {
+        adaugaNotificare("Eroare subscribe", "Nu s-a putut face abonarea la topic.", "event-red");
+      }
+    });
+  });
+
+  mqttClient.on("message", function (topic, message) {
+    const payload = message.toString();
+    if (!payload || payload.trim() === "") return;
+
+    ultimaDataPrimitaMs = Date.now();
+    pornesteWatchdogDate();
+
+    try {
+      const data = JSON.parse(payload);
+      actualizeazaDate(data, payload);
+    } catch (e) {
+      adaugaNotificare("Eroare JSON", "Mesaj primit, dar nu a putut fi interpretat.", "event-red");
+    }
+  });
+
+  mqttClient.on("reconnect", function () {
+    setMqttStatus("Reconectare...", "");
+    setText("brokerStatus", "Reconectare");
+  });
+
+  mqttClient.on("error", function () {
+    setMqttStatus("MQTT eroare", "offline");
+    setText("brokerStatus", "Eroare");
+  });
+
+  mqttClient.on("close", function () {
+    setMqttStatus("MQTT offline", "offline");
+    setText("brokerStatus", "Offline");
+  });
+}
+
+function reconnectMQTT() {
+  setMqttStatus("Reconectare...", "");
+  if (mqttClient) {
+    try { mqttClient.end(true); } catch (e) {}
+    mqttClient = null;
+  }
+  setTimeout(connectMQTT, 700);
+}
+
+function pornesteWatchdogDate() {
+  if (watchdogPornit) return;
+  watchdogPornit = true;
+
+  setInterval(function () {
+    if (!ultimaDataPrimitaMs) return;
+    const diferenta = Date.now() - ultimaDataPrimitaMs;
+
+    if (diferenta > DATA_TIMEOUT_MS) {
+      setText("ultimaActualizare", "Fara date recente");
+    }
+  }, 5000);
+}
+
+function setMqttStatus(text, mode) {
+  const el = document.getElementById("mqttStatus");
+  if (!el) return;
+  el.innerHTML = '<span class="dot"></span> ' + text;
+  el.className = "status-pill";
+  if (mode === "online") el.classList.add("online");
+  if (mode === "offline") el.classList.add("offline");
+}
+
+function showPage(page, btn) {
+  document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
+  document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+
+  const section = document.getElementById(page);
+  if (section) section.classList.add("active");
+  if (btn) btn.classList.add("active");
+
+  // Daca intri pe Harta in timp ce animatia este inca in curs,
+  // calculam pozitia dupa timpul real trecut, nu dupa timpul petrecut vizibil pe ecran.
+  if (page === "harta") {
+    if (animatieMasinaInCurs) {
+      aplicaCadruAnimatieMasina("passingCarMap");
+    }
+    if (ultimDataBariera) {
+      requestAnimationFrame(function () {
+        seteazaBariera(ultimDataBariera, { nuPorniAnimatie: true });
+        if (animatieMasinaInCurs) aplicaCadruAnimatieMasina("passingCarMap");
+      });
+    }
+  }
+}
+
+function toggleTheme() {
+  document.body.classList.toggle("light");
+  const themeBtn = document.getElementById("themeBtn");
+  if (themeBtn) themeBtn.textContent = document.body.classList.contains("light") ? "🌙" : "☀️";
+}
+
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value;
+}
+
+function oraCurenta() {
+  return new Date().toLocaleTimeString();
+}
+
+function adaugaNotificare(titlu, mesaj, tip) {
+  const lista = document.getElementById("notificariLista");
+  if (!lista) return;
+
+  const item = document.createElement("div");
+  item.className = "event-item " + tip;
+
+  const strong = document.createElement("strong");
+  strong.textContent = titlu;
+
+  const small = document.createElement("small");
+  small.textContent = oraCurenta() + " - " + mesaj;
+
+  item.appendChild(strong);
+  item.appendChild(small);
+  lista.prepend(item);
+
+  notificariCount++;
+  while (notificariCount > 12 && lista.lastChild) {
+    lista.removeChild(lista.lastChild);
+    notificariCount--;
+  }
+}
+
+function setSlot(id, ocupat) {
+  const targets = [
+    { slot: document.getElementById("slot" + id), icon: document.getElementById("icon" + id), text: document.getElementById("text" + id), compact: false },
+    { slot: document.getElementById("slot" + id + "Home"), icon: document.getElementById("icon" + id + "Home"), text: document.getElementById("text" + id + "Home"), compact: true }
+  ];
+
+  targets.forEach(target => {
+    const slot = target.slot;
+    const icon = target.icon;
+    const text = target.text;
+    if (!slot || !icon || !text) return;
+
+    if (Number(ocupat) === 1) {
+      slot.className = target.compact ? "slot compact-slot occupied" : "slot occupied";
+      icon.textContent = "AUTO";
+      text.textContent = "OCUPAT";
+    } else {
+      slot.className = target.compact ? "slot compact-slot free" : "slot free";
+      icon.textContent = "P";
+      text.textContent = "LIBER";
+    }
+  });
+}
+
+function hartaEsteActiva() {
+  const harta = document.getElementById("harta");
+  return !!harta && harta.classList.contains("active");
+}
+
+function reseteazaAnimatieMasina(carId) {
+  const car = document.getElementById(carId);
+  if (!car) return;
+
+  if (timerAnimatieMasina) {
+    clearTimeout(timerAnimatieMasina);
+    timerAnimatieMasina = null;
+  }
+
+  if (animatieMasinaFrameId) {
+    cancelAnimationFrame(animatieMasinaFrameId);
+    animatieMasinaFrameId = null;
+  }
+
+  car.getAnimations().forEach(anim => anim.cancel());
+  car.style.opacity = "0";
+  car.style.transform = "translate3d(0, 0, 0)";
+  animatieMasinaInCurs = false;
+  animatieMasinaStartMs = 0;
+}
+
+function aplicaCadruAnimatieMasina(carId) {
+  const car = document.getElementById(carId);
+  const zona = car ? car.parentElement : null;
+  if (!car || !zona || !animatieMasinaInCurs || !animatieMasinaStartMs) return;
+
+  const durata = MASINA_ANIMATIE_DURATA_MS;
+  const trecut = Date.now() - animatieMasinaStartMs;
+  const progres = Math.max(0, Math.min(1, trecut / durata));
+
+  if (progres >= 1) {
+    reseteazaAnimatieMasina(carId);
+    return;
+  }
+
+  const latimeZona = zona.clientWidth || 320;
+  const lungime = latimeZona + 150;
+  const x = lungime * progres;
+
+  let opacitate = 1;
+  if (progres < 0.05) {
+    opacitate = progres / 0.05;
+  } else if (progres > 0.95) {
+    opacitate = (1 - progres) / 0.05;
+  }
+
+  car.style.opacity = String(Math.max(0, Math.min(1, opacitate)));
+  car.style.transform = `translate3d(${x}px, 0px, 0)`;
+}
+
+function ruleazaAnimatieMasina(carId) {
+  if (!animatieMasinaInCurs) return;
+
+  aplicaCadruAnimatieMasina(carId);
+
+  if (animatieMasinaInCurs) {
+    animatieMasinaFrameId = requestAnimationFrame(function () {
+      ruleazaAnimatieMasina(carId);
+    });
+  }
+}
+
+function pornesteAnimatieMasina(carId) {
+  const car = document.getElementById(carId);
+  const zona = car ? car.parentElement : null;
+  if (!car || !zona) return;
+
+  const acum = Date.now();
+  if (animatieMasinaInCurs || (acum - ultimaAnimatieMasinaMs) < MASINA_ANIMATIE_COOLDOWN_MS) {
+    return;
+  }
+
+  reseteazaAnimatieMasina(carId);
+  animatieMasinaInCurs = true;
+  animatieMasinaStartMs = acum;
+  ultimaAnimatieMasinaMs = acum;
+
+  // Animatia este bazata pe Date.now(), nu pe timpul vizibil al sectiunii.
+  // Astfel, daca esti pe Notificari/Sistem si intri pe Harta, masina nu mai merge slow motion.
+  aplicaCadruAnimatieMasina(carId);
+  ruleazaAnimatieMasina(carId);
+}
+
+function actualizeazaRecomandare(data) {
+  const statusAcces = String(data.statusAcces || "");
+  let text = "";
+
+  if (Number(data.locuriLibere) === 0) {
+    text = "Parcarea este plina. Utilizatorul trebuie sa astepte eliberarea unui loc.";
+  } else if (statusAcces.indexOf("Acces permis") !== -1 || statusAcces.indexOf("Acces_permis") !== -1) {
+    text = "Acces permis. Utilizatorul poate intra in parcare, iar bariera se deschide automat.";
+  } else if (statusAcces.indexOf("respins") !== -1 || statusAcces.indexOf("nepermis") !== -1 || statusAcces.indexOf("Nepermis") !== -1) {
+    text = "Acces respins. Cardul scanat nu este autorizat pentru acest sistem.";
+  } else if (statusAcces.indexOf("Card") !== -1) {
+    text = "Card detectat. Sistemul verifica autorizarea si disponibilitatea locurilor.";
+  } else {
+    text = "Sunt disponibile locuri. Utilizatorul poate scana cardul RFID pentru acces.";
+  }
+
+  setText("recomandareText", text);
+}
+
+function motivAccesRespins(data) {
+  const statusAcces = String(data.statusAcces || "");
+  if (Number(data.locuriLibere) === 0 || statusAcces.indexOf("plina") !== -1 || statusAcces.indexOf("Plina") !== -1) {
+    return "Accesul nu a fost permis deoarece parcarea este plina.";
+  }
+  return "Accesul nu a fost permis deoarece cardul scanat nu este autorizat.";
+}
+
+function esteStatusAccesPermis(statusAcces) {
+  return statusAcces.indexOf("Acces permis") !== -1 || statusAcces.indexOf("Acces_permis") !== -1;
+}
+
+function esteStatusAccesRespins(statusAcces) {
+  return (
+    statusAcces.indexOf("respins") !== -1 ||
+    statusAcces.indexOf("Respins") !== -1 ||
+    statusAcces.indexOf("nepermis") !== -1 ||
+    statusAcces.indexOf("Nepermis") !== -1 ||
+    statusAcces.indexOf("plina") !== -1 ||
+    statusAcces.indexOf("Plina") !== -1
+  );
+}
+
+function esteStatusCardScanat(statusAcces) {
+  return statusAcces.indexOf("Card") !== -1 || statusAcces.indexOf("card") !== -1;
+}
+
+function verificaEvenimente(data) {
+  const locuriLibere = Number(data.locuriLibere);
+  const statusAcces = String(data.statusAcces || "");
+  const uidCard = String(data.uidCard || "Nescanat");
+
+  // Exact ideea din index.html: prima stare primita dupa refresh este doar sincronizare.
+  // Nu o transformam in eveniment nou, deci nu mai apare "Card scanat" la refresh.
+  if (!primaActualizarePrimita) {
+    ultimLocuriLibere = locuriLibere;
+    ultimStatusAcces = statusAcces;
+    ultimUid = uidCard;
+    primaActualizarePrimita = true;
+    return;
+  }
+
+  if (ultimLocuriLibere !== -1 && locuriLibere !== ultimLocuriLibere) {
+    if (locuriLibere > ultimLocuriLibere) {
+      adaugaNotificare("Loc eliberat", "Numarul locurilor libere a crescut la " + locuriLibere + ".", "event-green");
+    } else {
+      adaugaNotificare("Loc ocupat", "Numarul locurilor libere a scazut la " + locuriLibere + ".", "event-yellow");
+    }
+  }
+
+  if (locuriLibere === 0 && ultimLocuriLibere !== 0) {
+    adaugaNotificare("Parcare plina", "Toate locurile sunt ocupate. Accesul va fi blocat temporar.", "event-red");
+  }
+
+  if (ultimStatusAcces !== "" && statusAcces !== ultimStatusAcces) {
+    if (esteStatusAccesPermis(statusAcces)) {
+      adaugaNotificare("Acces permis", "Card autorizat. Bariera permite intrarea.", "event-green");
+    } else if (esteStatusAccesRespins(statusAcces)) {
+      adaugaNotificare("Acces respins", motivAccesRespins(data), "event-red");
+    } else if (esteStatusCardScanat(statusAcces)) {
+      const statusAnteriorEraRezultat = esteStatusAccesPermis(ultimStatusAcces) || esteStatusAccesRespins(ultimStatusAcces);
+      const acum = Date.now();
+      const acelasiUidRecent = uidCard === ultimCardScanatUid && (acum - ultimCardScanatMs) < CARD_SCAN_COOLDOWN_MS;
+      const esteDuplicatDupaRezultat = statusAnteriorEraRezultat && acelasiUidRecent;
+
+      // Logica este ca in index.html: fiecare eveniment nou se adauga sus in lista.
+      // Rezultatul apare deasupra cardului scanat: Acces permis / Card scanat.
+      // Ignoram doar repetitia imediata Card scanat -> Acces permis -> Card scanat
+      // cu acelasi UID, pentru ca aceea este aceeasi scanare publicata din nou.
+      if (!esteDuplicatDupaRezultat) {
+        adaugaNotificare("Card scanat", "A fost scanat cardul cu UID-ul " + uidCard + ".", "event-blue");
+        ultimCardScanatUid = uidCard;
+        ultimCardScanatMs = acum;
+
+        // Verificare apare doar la o scanare reala, nu la refresh.
+        // Nu misca bratul barierei; schimba doar badge-ul si becul galben.
+        barieraVerificarePanaMs = Date.now() + 2200;
+        seteazaBariera(data);
+
+        setTimeout(function () {
+          if (Date.now() >= barieraVerificarePanaMs && ultimDataBariera) {
+            seteazaBariera(ultimDataBariera);
+          }
+        }, 2300);
+      }
+    }
+  }
+
+  ultimStatusAcces = statusAcces;
+  ultimUid = uidCard;
+  ultimLocuriLibere = locuriLibere;
+}
+
+function seteazaBariera(data, optiuni = {}) {
+  ultimDataBariera = data;
+
+  const statusBariera = String(data.statusBariera || "");
+  const deschisaReala = statusBariera.indexOf("Deschisa") !== -1 || statusBariera.indexOf("deschisa") !== -1;
+  const acum = Date.now();
+
+  // Partea de animatie ramane ca in fisierele bune: bratul depinde de statusBariera.
+  // Protectia de mai jos ignora doar o inchidere foarte scurta venita imediat dupa deschidere,
+  // ca sa nu se vada: deschide -> inchide -> deschide pentru aceeasi scanare.
+  let deschisaVizual = deschisaReala;
+  if (!deschisaReala && barieraDeschisaAnterior && (acum - momentUltimaDeschidereBarieraMs) < BARIERA_MIN_OPEN_VISUAL_MS) {
+    deschisaVizual = true;
+
+    if (!timerReverificareInchidere) {
+      const ramas = BARIERA_MIN_OPEN_VISUAL_MS - (acum - momentUltimaDeschidereBarieraMs) + 80;
+      timerReverificareInchidere = setTimeout(function () {
+        timerReverificareInchidere = null;
+        if (ultimDataBariera) seteazaBariera(ultimDataBariera, { nuPorniAnimatie: true });
+      }, Math.max(120, ramas));
+    }
+  }
+
+  const verificareActiva = !deschisaVizual && Date.now() < barieraVerificarePanaMs;
+
+  const arm = document.getElementById("barrierArmMap");
+  const base = document.getElementById("barrierBaseMap");
+  const badge = document.getElementById("mapBarrier");
+
+  if (arm) arm.classList.toggle("open", deschisaVizual);
+
+  if (base) {
+    base.classList.remove("closed", "checking", "open");
+    if (deschisaVizual) {
+      base.classList.add("open");
+    } else if (verificareActiva) {
+      base.classList.add("checking");
+    } else {
+      base.classList.add("closed");
+    }
+  }
+
+  if (badge) {
+    badge.classList.remove("closed", "checking", "open");
+    if (deschisaVizual) {
+      badge.textContent = "Deschisa";
+      badge.classList.add("open");
+    } else if (verificareActiva) {
+      badge.textContent = "Verificare";
+      badge.classList.add("checking");
+    } else {
+      badge.textContent = "Inchisa";
+      badge.classList.add("closed");
+    }
+  }
+
+  if (deschisaVizual && !barieraDeschisaAnterior) {
+    momentUltimaDeschidereBarieraMs = acum;
+
+    // Pornim animatia indiferent de sectiunea deschisa.
+    // Pozitia masinii este calculata dupa timpul real, deci nu se blocheaza in slow motion cand revii pe Harta.
+    if (!optiuni.nuPorniAnimatie) {
+      if (timerAnimatieMasina) clearTimeout(timerAnimatieMasina);
+      timerAnimatieMasina = setTimeout(function () {
+        timerAnimatieMasina = null;
+        pornesteAnimatieMasina("passingCarMap");
+      }, 430);
+    }
+  }
+
+  if (!deschisaVizual && !animatieMasinaInCurs) {
+    reseteazaAnimatieMasina("passingCarMap");
+  }
+
+  barieraDeschisaAnterior = deschisaVizual;
+}
+
+
+function seteazaFlowStep(id, mode) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove("green", "red", "yellow", "idle", "idle-rfid", "scanning");
+  if (mode) {
+    mode.split(" ").forEach(cls => { if (cls) el.classList.add(cls); });
+  }
+}
+
+function seteazaFlowBadge(text, mode) {
+  const el = document.getElementById("homeFlowBadge");
+  if (!el) return;
+  el.textContent = text;
+  el.classList.remove("green", "red");
+  if (mode) el.classList.add(mode);
+}
+
+function seteazaRecomandareHomeMode(mode) {
+  const el = document.getElementById("homeDecisionSub")?.parentElement;
+  if (!el) return;
+  el.classList.remove("rec-ok", "rec-warn", "rec-bad");
+  el.classList.add(mode || "rec-ok");
+}
+
+function primulLocLiber(data) {
+  for (let i = 1; i <= 4; i++) {
+    if (Number(data["L" + i]) === 0) return "L" + i;
+  }
+  return "Fara locuri";
+}
+
+function seteazaMiniCard(id, mode) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove("good", "warn", "bad");
+  if (mode) el.classList.add(mode);
+}
+
+function seteazaBadgeLocuriLibere(id, locuriLibere) {
+  const span = document.getElementById(id);
+  const badge = span ? span.parentElement : null;
+  if (!badge) return;
+
+  badge.classList.remove("closed", "checking", "open");
+  if (Number(locuriLibere) <= 0) {
+    badge.classList.add("closed");
+  }
+}
+
+function listaLocuriLibere(data, totalLocuri) {
+  const libere = [];
+  for (let i = 1; i <= totalLocuri; i++) {
+    if (Number(data["L" + i]) !== 1) {
+      libere.push("L" + i);
+    }
+  }
+  return libere.length ? libere.join(", ") : "Niciun loc";
+}
+
+function textRecomandareHome(data, locuriLibere, cardInVerificare) {
+  const statusAcces = String(data.statusAcces || "");
+  const statusBariera = String(data.statusBariera || "");
+
+  if (statusBariera.toLowerCase().includes("deschisa")) {
+    return "Acces permis. Intra in parcare si alege unul dintre locurile libere.";
+  }
+  if (cardInVerificare) {
+    return "Card detectat. Sistemul verifica daca utilizatorul are acces.";
+  }
+  if (locuriLibere <= 0) {
+    return "Parcarea este plina. Asteapta eliberarea unui loc.";
+  }
+  if (esteStatusAccesRespins(statusAcces)) {
+    return "Acces respins. Foloseste un card autorizat pentru intrare.";
+  }
+  return "Sunt locuri disponibile. Scaneaza cardul RFID la intrare.";
+}
+
+function actualizeazaHomeProfesional(data, locuriLibere, locuriOcupate) {
+  const statusAcces = String(data.statusAcces || "");
+  const statusBariera = String(data.statusBariera || "");
+  const statusMic = statusAcces.toLowerCase();
+  const barieraMic = statusBariera.toLowerCase();
+  const totalLocuri = Number(data.totalLocuri || 4);
+
+  const cardInVerificare =
+    statusMic.includes("card") &&
+    !statusMic.includes("asteptare") &&
+    !esteStatusAccesPermis(statusAcces) &&
+    !esteStatusAccesRespins(statusAcces);
+
+  setText("homeLiveDisponibil", "Card RFID");
+  setText("homeLiveOcupare", listaLocuriLibere(data, totalLocuri));
+
+  if (barieraMic.includes("deschisa")) {
+    setText("homeLivePoarta", "Intra acum");
+  } else if (cardInVerificare) {
+    setText("homeLivePoarta", "Asteapta verdict");
+  } else if (locuriLibere <= 0) {
+    setText("homeLivePoarta", "Asteapta loc");
+  } else if (esteStatusAccesRespins(statusAcces)) {
+    setText("homeLivePoarta", "Card invalid");
+  } else {
+    setText("homeLivePoarta", "Scaneaza cardul");
+  }
+
+  setText("homeDecisionTitle", "Recomandare utilizator");
+  setText("homeDecisionSub", textRecomandareHome(data, locuriLibere, cardInVerificare));
+
+  if (barieraMic.includes("deschisa")) {
+    seteazaRecomandareHomeMode("rec-ok");
+  } else if (cardInVerificare) {
+    seteazaRecomandareHomeMode("rec-warn");
+  } else if (locuriLibere <= 0 || esteStatusAccesRespins(statusAcces)) {
+    seteazaRecomandareHomeMode("rec-bad");
+  } else {
+    seteazaRecomandareHomeMode("rec-ok");
+  }
+
+  if (locuriLibere <= 0) {
+    setText("homeDisponibilitateText", "Parcare plina");
+    seteazaFlowStep("flowDisponibilitate", "red");
+  } else {
+    setText("homeDisponibilitateText", locuriLibere + " locuri libere");
+    seteazaFlowStep("flowDisponibilitate", "green");
+  }
+
+  if (locuriLibere <= 0) {
+    setText("homeRfidText", "Blocat");
+    seteazaFlowStep("flowRfid", "red");
+  } else if (esteStatusAccesPermis(statusAcces)) {
+    setText("homeRfidText", "Card acceptat");
+    seteazaFlowStep("flowRfid", "green");
+  } else if (esteStatusAccesRespins(statusAcces)) {
+    setText("homeRfidText", "Card respins");
+    seteazaFlowStep("flowRfid", "red");
+  } else if (cardInVerificare) {
+    setText("homeRfidText", "Se verifica");
+    seteazaFlowStep("flowRfid", "yellow scanning");
+  } else {
+    setText("homeRfidText", "Pregatit");
+    seteazaFlowStep("flowRfid", "yellow idle-rfid");
+  }
+
+  if (barieraMic.includes("deschisa")) {
+    setText("homePoartaText", "Deschisa");
+    seteazaFlowStep("flowPoarta", "green");
+    seteazaFlowBadge("Deschisa", "green");
+    setText("homeGuidance", "Bariera este ridicata. Treci incet si continua catre locurile libere: " + listaLocuriLibere(data, totalLocuri) + ".");
+  } else if (cardInVerificare) {
+    setText("homePoartaText", "Verificare");
+    seteazaFlowStep("flowPoarta", "yellow");
+    seteazaFlowBadge("Verificare", "");
+    setText("homeGuidance", "Pastreaza cardul aproape de cititor pana cand sistemul termina verificarea.");
+  } else if (locuriLibere <= 0) {
+    setText("homePoartaText", "Inchisa");
+    seteazaFlowStep("flowPoarta", "red");
+    seteazaFlowBadge("Parking full", "red");
+    setText("homeGuidance", "Accesul ramane inchis pana cand se elibereaza cel putin un loc.");
+  } else if (esteStatusAccesRespins(statusAcces)) {
+    setText("homePoartaText", "Inchisa");
+    seteazaFlowStep("flowPoarta", "red");
+    seteazaFlowBadge("Respins", "red");
+    setText("homeGuidance", "Cardul scanat nu este autorizat. Incearca un card valid.");
+  } else {
+    setText("homePoartaText", "Inchisa");
+    seteazaFlowStep("flowPoarta", "red");
+    seteazaFlowBadge("Standby", "");
+    setText("homeGuidance", "Locuri libere disponibile: " + listaLocuriLibere(data, totalLocuri) + ". Apropie cardul RFID de cititor pentru acces.");
+  }
+}
+
+function actualizeazaDate(data, rawPayload) {
+  const locuriLibere = Number(data.locuriLibere || 0);
+  const totalLocuri = Number(data.totalLocuri || 4);
+  const locuriOcupate = Number(data.locuriOcupate || Math.max(totalLocuri - locuriLibere, 0));
+  const procentOcupare = Number(data.procentOcupare || 0);
+
+  setText("homeLibere", locuriLibere);
+  setText("homeTotal", totalLocuri);
+  setText("homeOcupare", procentOcupare);
+  setText("mapLibere", locuriLibere);
+  setText("homeMapLibere", locuriLibere);
+  seteazaBadgeLocuriLibere("mapLibere", locuriLibere);
+  seteazaBadgeLocuriLibere("homeMapLibere", locuriLibere);
+  setText("locuriOcupate", locuriOcupate);
+  setText("homeAcces", data.statusAcces || "---");
+  setText("mapBarrier", data.statusBariera || "---");
+  actualizeazaHomeProfesional(data, locuriLibere, locuriOcupate);
+  setText("statusSistem", data.statusSistem || "---");
+  setText("conexiuneArduino", data.conexiuneArduino || "---");
+  setText("ultimulMesaj", rawPayload || "Nu exista date");
+  setText("uptime", data.uptime || 0);
+  setText("ultimaActualizare", oraCurenta());
+
+  const bara = document.getElementById("baraOcupare");
+  if (bara) bara.style.width = Math.max(0, Math.min(100, procentOcupare)) + "%";
+
+  setSlot(1, data.L1);
+  setSlot(2, data.L2);
+  setSlot(3, data.L3);
+  setSlot(4, data.L4);
+
+  actualizeazaRecomandare(data);
+  seteazaBariera(data);
+
+  const fullAlert = document.getElementById("fullAlert");
+  if (fullAlert) fullAlert.classList.toggle("show", locuriLibere === 0);
+
+  verificaEvenimente(data);
+}
+
+window.addEventListener("online", function () {
+  adaugaNotificare("Internet activ", "Telefonul este din nou online.", "event-green");
+  reconnectMQTT();
+});
+
+window.addEventListener("offline", function () {
+  setMqttStatus("Telefon offline", "offline");
+  setText("brokerStatus", "Telefon offline");
+  adaugaNotificare("Telefon offline", "Nu exista conexiune la internet.", "event-red");
+});
+
+connectMQTT();
+</script>
+</body>
+</html>
